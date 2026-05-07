@@ -1,0 +1,11 @@
+body {
+    background-color: #f7f9fc;
+}
+
+.thumb-img {
+    width: 72px;
+    height: 72px;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+}

@@ -1,0 +1,14 @@
+.venv/
+.venv310/
+.project_venv/
+__pycache__/
+*.py[cod]
+staticfiles/
+.env
+
+# Local databases can be shared intentionally, but should not be committed by default.
+db.sqlite3
+attendance.db
+
+# Uploaded/captured student photos are local data.
+media/

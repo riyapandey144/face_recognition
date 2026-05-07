@@ -1,0 +1,127 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-9">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h3 class="mb-3">Live Attendance</h3>
+                <p class="text-muted">Face is scanned every 3 seconds and attendance is marked automatically.</p>
+                <div class="position-relative">
+                    <video id="video" class="w-100 rounded border" autoplay playsinline></video>
+                    <canvas id="overlay" class="position-absolute top-0 start-0 w-100 h-100"></canvas>
+                </div>
+                <canvas id="captureCanvas" class="d-none"></canvas>
+                <div class="mt-3">
+                    <div id="result" class="alert alert-info mb-0">Waiting for face...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const video = document.getElementById('video');
+const overlay = document.getElementById('overlay');
+const captureCanvas = document.getElementById('captureCanvas');
+const resultBox = document.getElementById('result');
+
+let lastName = '';
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let cookie of cookies) {
+            cookie = cookie.trim();
+            if (cookie.startsWith(name + '=')) {
+                cookieValue = decodeURIComponent(cookie.slice(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+function drawBox(box, label) {
+    const ctx = overlay.getContext('2d');
+    overlay.width = video.clientWidth;
+    overlay.height = video.clientHeight;
+    ctx.clearRect(0, 0, overlay.width, overlay.height);
+
+    if (!box || !video.videoWidth || !video.videoHeight) return;
+
+    const scaleX = overlay.width / video.videoWidth;
+    const scaleY = overlay.height / video.videoHeight;
+    const x = box.left * scaleX;
+    const y = box.top * scaleY;
+    const width = (box.right - box.left) * scaleX;
+    const height = (box.bottom - box.top) * scaleY;
+
+    ctx.strokeStyle = '#00ff00';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(x, y, width, height);
+    ctx.fillStyle = '#00ff00';
+    ctx.font = '18px Arial';
+    ctx.fillText(label || 'Detected', x, Math.max(20, y - 10));
+}
+
+async function initCamera() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        video.srcObject = stream;
+    } catch (error) {
+        resultBox.className = 'alert alert-danger mb-0';
+        resultBox.textContent = 'Camera not working or permission denied.';
+    }
+}
+
+async function sendFrame() {
+    if (!video.videoWidth || !video.videoHeight) return;
+    captureCanvas.width = video.videoWidth;
+    captureCanvas.height = video.videoHeight;
+    captureCanvas.getContext('2d').drawImage(video, 0, 0);
+    const frame = captureCanvas.toDataURL('image/jpeg', 0.8);
+
+    const body = new URLSearchParams({ frame });
+    try {
+        const response = await fetch("{% url 'recognize_face' %}", {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken'),
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body
+        });
+        const data = await response.json();
+        drawBox(data.box, data.name || data.message);
+
+        if (data.status === 'recognized') {
+            const attendanceState = data.attendance_status;
+            resultBox.className = attendanceState === 'Attendance Marked' ? 'alert alert-success mb-0' : 'alert alert-warning mb-0';
+            if (lastName !== data.name || attendanceState === 'Attendance Marked') {
+                resultBox.textContent = `${data.name} - ${attendanceState} (${data.time})`;
+                lastName = data.name;
+            }
+        } else if (data.status === 'unknown') {
+            resultBox.className = 'alert alert-warning mb-0';
+            resultBox.textContent = 'Unknown face detected.';
+        } else if (data.status === 'no_face') {
+            resultBox.className = 'alert alert-info mb-0';
+            resultBox.textContent = 'No face detected.';
+        } else {
+            resultBox.className = 'alert alert-danger mb-0';
+            resultBox.textContent = data.message || 'Recognition error.';
+        }
+    } catch (error) {
+        resultBox.className = 'alert alert-danger mb-0';
+        resultBox.textContent = 'Failed to send frame to server.';
+    }
+}
+
+initCamera();
+setInterval(sendFrame, 3000);
+</script>
+{% endblock %}

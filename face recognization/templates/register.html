@@ -1,0 +1,99 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="row g-4">
+    <div class="col-lg-6">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h3 class="card-title mb-3">Register Student</h3>
+                <form method="post" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label">Student Name</label>
+                        <input type="text" name="name" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Upload Image (Optional)</label>
+                        <input type="file" name="image" class="form-control" accept="image/*">
+                    </div>
+                    <input type="hidden" name="captured_image" id="captured_image">
+                    <button type="submit" class="btn btn-success">Save Student</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-6">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h5 class="mb-3">Capture from Webcam</h5>
+                <video id="video" class="w-100 rounded border" autoplay playsinline></video>
+                <canvas id="canvas" class="d-none"></canvas>
+                <button id="captureBtn" class="btn btn-primary mt-3" type="button">Capture Frame</button>
+                <p id="captureStatus" class="small text-muted mt-2"></p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mt-4 shadow-sm">
+    <div class="card-body">
+        <h4 class="mb-3">Registered Students</h4>
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr><th>Sr No</th><th>Name</th><th>Image</th></tr>
+                </thead>
+                <tbody>
+                    {% for student in students %}
+                    <tr>
+                        {# Show continuous UI numbering without changing DB primary keys. #}
+                        <td>{{ forloop.counter }}</td>
+                        <td>{{ student.name }}</td>
+                        <td><img src="{{ student.image.url }}" alt="{{ student.name }}" class="thumb-img"></td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="3" class="text-center text-muted">No students registered.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const video = document.getElementById('video');
+const canvas = document.getElementById('canvas');
+const captureBtn = document.getElementById('captureBtn');
+const captureStatus = document.getElementById('captureStatus');
+const capturedInput = document.getElementById('captured_image');
+
+async function initCamera() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        video.srcObject = stream;
+    } catch (error) {
+        captureStatus.textContent = 'Camera not working or permission denied.';
+        captureStatus.classList.add('text-danger');
+    }
+}
+
+captureBtn.addEventListener('click', () => {
+    if (!video.videoWidth || !video.videoHeight) {
+        captureStatus.textContent = 'Camera not ready yet.';
+        return;
+    }
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    capturedInput.value = canvas.toDataURL('image/jpeg', 0.9);
+    captureStatus.textContent = 'Frame captured. Submit form to register.';
+    captureStatus.classList.remove('text-danger');
+});
+
+initCamera();
+</script>
+{% endblock %}
